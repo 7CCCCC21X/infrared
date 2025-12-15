@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Infrared 空投批量查询</title>
+<style>
+  body{margin:0;background:#f7f8fb;font-family:system-ui}
+  .wrap{max-width:900px;margin:30px auto;padding:0 16px}
+  h1{font-size:20px}
+  textarea{width:100%;min-height:160px;font-family:monospace}
+  button{padding:8px 14px;margin-right:8px}
+  table{width:100%;border-collapse:collapse;margin-top:16px}
+  th,td{border-bottom:1px solid #ddd;padding:8px}
+  th{background:#fafafa}
+  .num{text-align:right}
+</style>
+</head>
+
+<body>
+<div class="wrap">
+  <h1>Infrared 空投批量查询（IR）</h1>
+
+  <textarea id="addrs" placeholder="0x...\n0x..."></textarea>
+  <div style="margin-top:8px">
+    <button id="start">开始查询</button>
+    <button id="stop" disabled>停止</button>
+    <a href="https://infrared.finance" target="_blank">官网</a>
+  </div>
+
+  <div id="summary" style="margin-top:10px">
+    地址数 0 · 可领取 0 IR
+  </div>
+
+  <table id="table" style="display:none">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>地址</th>
+        <th class="num">可领取 IR</th>
+        <th>状态</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<script>
+const API = "/api/infrared?chainId=80094&address=";
+const DECIMALS = 18;
+const BATCH = 10;
+
+const addrsEl = document.getElementById("addrs");
+const tbody = document.getElementById("tbody");
+const table = document.getElementById("table");
+const summary = document.getElementById("summary");
+const startBtn = document.getElementById("start");
+const stopBtn = document.getElementById("stop");
+
+let aborter;
+
+function parseAddrs() {
+  return [...new Set(
+    addrsEl.value.split(/[\s,]+/).map(s=>s.trim()).filter(s=>/^0x[a-fA-F0-9]{40}$/.test(s))
+  )];
+}
+
+function format(amount) {
+  const raw = BigInt(amount || "0");
+  const base = 10n ** BigInt(DECIMALS);
+  const i = raw / base;
+  const f = (raw % base).toString().padStart(DECIMALS,"0").slice(0,4).replace(/0+$/,"");
+  return f ? `${i}.${f}` : i.toString();
+}
+
+async function fetchOne(addr, signal) {
+  const res = await fetch(API + addr, { signal });
+  const j = await res.json();
+  return format(j.amount || "0");
+}
+
+startBtn.onclick = async () => {
+  const list = parseAddrs();
+  if (!list.length) return alert("没有有效地址");
+
+  tbody.innerHTML = "";
+  table.style.display = "table";
+  aborter = new AbortController();
+  startBtn.disabled = true;
+  stopBtn.disabled = false;
+
+  let total = 0n;
+
+  for (let i=0;i<list.length;i+=BATCH) {
+    const batch = list.slice(i,i+BATCH);
+    const ps = batch.map(a =>
+      fetchOne(a, aborter.signal)
+        .then(ir => ({ ok:true, ir, addr:a }))
+        .catch(()=>({ ok:false, ir:"0", addr:a }))
+    );
+
+    const rs = await Promise.all(ps);
+    rs.forEach((r,idx)=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${i+idx+1}</td>
+        <td>${r.addr}</td>
+        <td class="num">${r.ir}</td>
+        <td>${r.ok?"成功":"失败"}</td>`;
+      tbody.appendChild(tr);
+      total += BigInt(r.ir.replace(".",""));
+    });
+
+    summary.textContent = `地址数 ${list.length} · 已查询 ${Math.min(i+BATCH,list.length)}`;
+  }
+
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+};
+
+stopBtn.onclick = ()=>{
+  if (aborter) aborter.abort();
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+};
+</script>
+</body>
+</html>
