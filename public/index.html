@@ -73,6 +73,7 @@
 
     <div class="row" style="margin-top:10px">
       <label class="hint"><input id="onlyOk" type="checkbox"> 只看有空投的</label>
+
       <span class="hint">复制有空投地址：</span>
       <select id="sepSel" class="select small">
         <option value="nl">换行分隔</option>
@@ -195,13 +196,19 @@
     summary.innerHTML = `输入地址数量 <b>${total}</b> 个 · 成功 <b>${success}</b> 个 · 可领取（>0） <b>${eligible}</b> 个 · 总可领取 <b>${sumIr}</b> ${TOKEN_SYMBOL}`;
   }
 
-  function applyFilter(){
+  // ✅ 修复：过滤后用 visibleNo++ 重新编号，避免全变成 100
+  function applyView(){
     const onlyOk = onlyOkEl.checked;
-    results.forEach((r,i)=>{
+    let visibleNo = 1;
+
+    for (let i = 0; i < results.length; i++){
+      const r = results[i];
       const show = !onlyOk || (r?.status === 'OK' && Number(r.ir || 0) > 0);
+
       rows[i].tr.style.display = show ? '' : 'none';
-      if (show) rows[i].idxCell.textContent = (document.querySelectorAll('#tbody tr:not([style*="display: none"])').length);
-    });
+      if (show) rows[i].idxCell.textContent = visibleNo++;
+    }
+
     updateButtons();
   }
 
@@ -284,7 +291,7 @@
       }
 
       recomputeSummary();
-      applyFilter();
+      applyView();
     }
   }
 
@@ -312,7 +319,7 @@
     } finally {
       setBusy(false);
       recomputeSummary();
-      applyFilter();
+      applyView();
     }
   });
 
@@ -322,7 +329,7 @@
     setBusy(false);
   });
 
-  onlyOkEl.addEventListener('change', applyFilter);
+  onlyOkEl.addEventListener('change', applyView);
 
   btnCopy.addEventListener('click', async ()=>{
     const okAddrs = results.filter(r => r?.status === 'OK' && Number(r.ir||0) > 0).map(r => r.address);
