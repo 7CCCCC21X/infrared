@@ -5,124 +5,358 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Infrared 空投批量查询</title>
 <style>
-  body{margin:0;background:#f7f8fb;font-family:system-ui}
-  .wrap{max-width:900px;margin:30px auto;padding:0 16px}
-  h1{font-size:20px}
-  textarea{width:100%;min-height:160px;font-family:monospace}
-  button{padding:8px 14px;margin-right:8px}
-  table{width:100%;border-collapse:collapse;margin-top:16px}
-  th,td{border-bottom:1px solid #ddd;padding:8px}
-  th{background:#fafafa}
-  .num{text-align:right}
+  :root{
+    --bg:#f7f8fb; --paper:#fff; --ink:#1f2937; --muted:#6b7280;
+    --line:#e5e7eb; --brand:#2563eb; --ok:#16a34a; --err:#dc2626; --warn:#b45309;
+    --radius:12px; --shadow:0 8px 28px rgba(0,0,0,.06);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.55}
+  .wrap{max-width:980px;margin:32px auto;padding:0 16px}
+  h1{margin:0 0 16px;font-size:20px;font-weight:800}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px}
+  textarea{
+    width:100%;min-height:160px;border:1px solid var(--line);border-radius:10px;resize:vertical;
+    padding:10px;background:#fff;font-family:var(--mono);font-size:13px
+  }
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .btn{appearance:none;border:1px solid var(--line);background:var(--brand);color:#fff;
+    padding:10px 16px;border-radius:10px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:8px}
+  .btn.secondary{background:#6b7280}
+  .btn.ghost{background:#fff;color:#1f2937}
+  .btn.link{background:#eef2ff;color:#1d4ed8;border-color:#dbe3ff}
+  .btn[disabled]{opacity:.6;cursor:not-allowed}
+  .hint{color:var(--muted);font-size:12px}
+  .summary{margin-top:10px}
+  .summary b{font-weight:800}
+
+  table{width:100%;border-collapse:collapse}
+  thead th{background:#fafafa;border-bottom:1px solid var(--line);text-align:left;padding:10px;font-size:13px;color:#374151}
+  tbody td{border-bottom:1px solid var(--line);padding:10px;font-size:14px;vertical-align:top}
+  tbody tr:nth-child(odd){background:#fcfcfd}
+  .addr{font-family:var(--mono);word-break:break-all}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .status{display:flex;align-items:center;gap:6px}
+  .dot{width:18px;height:18px;border-radius:4px;display:inline-grid;place-items:center}
+  .ok{background:#e8f7ee;border:1px solid #bfe8cb;color:var(--ok)}
+  .err{background:#fdeaea;border:1px solid #f3c3c3;color:var(--err)}
+  .pending{background:#eef2ff;border:1px solid #dbe3ff;color:#4f46e5}
+  .warn{background:#fff7ed;border:1px solid #fde68a;color:var(--warn)}
+  .text-err{color:var(--err);font-weight:700}
+  .num-err{color:var(--err)}
+  .small{font-size:12px}
+  .select{border:1px solid var(--line);border-radius:8px;background:#fff;padding:6px 10px}
 </style>
 </head>
 
 <body>
 <div class="wrap">
-  <h1>Infrared 空投批量查询（IR）</h1>
+  <h1>Infrared 空投批量查询</h1>
 
-  <textarea id="addrs" placeholder="0x...\n0x..."></textarea>
-  <div style="margin-top:8px">
-    <button id="start">开始查询</button>
-    <button id="stop" disabled>停止</button>
-    <a href="https://infrared.finance" target="_blank">官网</a>
+  <div class="card">
+    <div class="row" style="width:100%">
+      <div style="flex:1">
+        <label for="addrs" class="hint">钱包地址（每行一个，EVM 0x…）</label>
+        <textarea id="addrs" placeholder="0x....&#10;0x...."></textarea>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <button id="start" class="btn">开始查询</button>
+      <button id="stop" class="btn secondary" disabled>停止</button>
+      <a href="https://infrared.finance/" target="_blank" rel="noopener" class="btn link">官方入口</a>
+      <a href="https://x.com/0xXIAOc" target="_blank" rel="noopener" class="btn link">作者推特 @0xXIAOc</a>
+      <span class="hint">同域接口：/api/infrared（已解决 CORS）</span>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <label class="hint"><input id="onlyOk" type="checkbox"> 只看有空投的</label>
+      <span class="hint">复制有空投地址：</span>
+      <select id="sepSel" class="select small">
+        <option value="nl">换行分隔</option>
+        <option value="comma">逗号分隔</option>
+      </select>
+      <button id="btnCopy" class="btn ghost" disabled>复制</button>
+
+      <span class="hint">导出：</span>
+      <label class="hint"><input id="exportOnlyOk" type="checkbox" checked> 仅导出有空投</label>
+      <button id="btnCsv" class="btn ghost" disabled>导出 CSV</button>
+    </div>
+
+    <div id="summary" class="summary">
+      输入地址数量 <b>0</b> 个 · 成功 <b>0</b> 个 · 可领取（>0） <b>0</b> 个 · 总可领取 <b>0</b> IR
+    </div>
   </div>
 
-  <div id="summary" style="margin-top:10px">
-    地址数 0 · 可领取 0 IR
+  <div class="card" id="tableCard" style="margin-top:16px;display:none">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:60px">#</th>
+          <th>地址</th>
+          <th class="num" style="width:200px">可领取 IR</th>
+          <th style="width:160px">状态</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="hint" style="margin-top:8px">
+      amount 按 18 位精度换算显示（示例 105890... ≈ 105.9 IR）。
+    </div>
   </div>
-
-  <table id="table" style="display:none">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>地址</th>
-        <th class="num">可领取 IR</th>
-        <th>状态</th>
-      </tr>
-    </thead>
-    <tbody id="tbody"></tbody>
-  </table>
 </div>
 
 <script>
-const API = "/api/infrared?chainId=80094&address=";
-const DECIMALS = 18;
-const BATCH = 10;
+  // ===== 固定参数 =====
+  const CHAIN_ID = 80094;
+  const BATCH_SIZE = 10;      // 每批并发 10 个
+  const DECIMALS = 18;        // amount 精度
+  const TOKEN_SYMBOL = 'IR';
+  const API = '/api/infrared?chainId=' + CHAIN_ID + '&address=';
+  const ETH_RE = /^0x[a-fA-F0-9]{40}$/;
 
-const addrsEl = document.getElementById("addrs");
-const tbody = document.getElementById("tbody");
-const table = document.getElementById("table");
-const summary = document.getElementById("summary");
-const startBtn = document.getElementById("start");
-const stopBtn = document.getElementById("stop");
+  // ===== DOM =====
+  const $ = s => document.querySelector(s);
+  const addrsEl = $('#addrs'), startBtn = $('#start'), stopBtn = $('#stop');
+  const tbody = $('#tbody'), tableCard = $('#tableCard'), summary = $('#summary');
+  const onlyOkEl = $('#onlyOk');
+  const btnCopy = $('#btnCopy'), sepSel = $('#sepSel');
+  const btnCsv = $('#btnCsv'), exportOnlyOkEl = $('#exportOnlyOk');
 
-let aborter;
+  // ===== 状态 =====
+  let aborter = null;
+  let rows = [];     // row objects
+  let results = [];  // { address, status:'queued'|'running'|'OK'|'FAIL', raw, ir }
 
-function parseAddrs() {
-  return [...new Set(
-    addrsEl.value.split(/[\s,]+/).map(s=>s.trim()).filter(s=>/^0x[a-fA-F0-9]{40}$/.test(s))
-  )];
-}
+  function parseAddresses(text){
+    return text.replace(/\r/g,'\n')
+      .split(/[\n\s,;，；]+/)
+      .map(s=>s.trim())
+      .filter(Boolean);
+  }
+  function valid(a){ return ETH_RE.test(a); }
+  function setBusy(b){ startBtn.disabled=b; stopBtn.disabled=!b; }
 
-function format(amount) {
-  const raw = BigInt(amount || "0");
-  const base = 10n ** BigInt(DECIMALS);
-  const i = raw / base;
-  const f = (raw % base).toString().padStart(DECIMALS,"0").slice(0,4).replace(/0+$/,"");
-  return f ? `${i}.${f}` : i.toString();
-}
-
-async function fetchOne(addr, signal) {
-  const res = await fetch(API + addr, { signal });
-  const j = await res.json();
-  return format(j.amount || "0");
-}
-
-startBtn.onclick = async () => {
-  const list = parseAddrs();
-  if (!list.length) return alert("没有有效地址");
-
-  tbody.innerHTML = "";
-  table.style.display = "table";
-  aborter = new AbortController();
-  startBtn.disabled = true;
-  stopBtn.disabled = false;
-
-  let total = 0n;
-
-  for (let i=0;i<list.length;i+=BATCH) {
-    const batch = list.slice(i,i+BATCH);
-    const ps = batch.map(a =>
-      fetchOne(a, aborter.signal)
-        .then(ir => ({ ok:true, ir, addr:a }))
-        .catch(()=>({ ok:false, ir:"0", addr:a }))
-    );
-
-    const rs = await Promise.all(ps);
-    rs.forEach((r,idx)=>{
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${i+idx+1}</td>
-        <td>${r.addr}</td>
-        <td class="num">${r.ir}</td>
-        <td>${r.ok?"成功":"失败"}</td>`;
-      tbody.appendChild(tr);
-      total += BigInt(r.ir.replace(".",""));
-    });
-
-    summary.textContent = `地址数 ${list.length} · 已查询 ${Math.min(i+BATCH,list.length)}`;
+  function escapeHtml(s){
+    return String(s)
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'","&#39;");
   }
 
-  startBtn.disabled = false;
-  stopBtn.disabled = true;
-};
+  function toBigIntSafe(s){
+    try{ if(!/^\d+$/.test(String(s))) return 0n; return BigInt(String(s)); } catch { return 0n; }
+  }
 
-stopBtn.onclick = ()=>{
-  if (aborter) aborter.abort();
-  startBtn.disabled = false;
-  stopBtn.disabled = true;
-};
+  function formatUnits(rawStr, decimals){
+    const raw = toBigIntSafe(rawStr);
+    const base = 10n ** BigInt(decimals);
+    const ip = raw / base;
+    const fp = raw % base;
+    let fpStr = fp.toString().padStart(decimals,'0').slice(0,4).replace(/0+$/,'');
+    return fpStr ? `${ip.toString()}.${fpStr}` : ip.toString();
+  }
+
+  function addRow(idx, address){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${idx+1}</td>
+      <td class="addr">${address}</td>
+      <td class="num">—</td>
+      <td class="status"><span class="dot warn">•</span><span> 排队中</span></td>`;
+    tbody.appendChild(tr);
+
+    const idxCell = tr.children[0];
+    const amtEl  = tr.children[2];
+    const statEl = tr.children[3];
+
+    return {
+      idx, address, tr, idxCell, amtEl, statEl,
+      setPending(){ statEl.innerHTML = `<span class="dot pending">…</span><span class="muted"> 查询中</span>`; },
+      setOK(ir){
+        amtEl.textContent = ir;
+        amtEl.classList.remove('num-err');
+        statEl.innerHTML = `<span class="dot ok">✔</span><span> 成功</span>`;
+      },
+      setFail(msg='失败'){
+        amtEl.textContent = '0';
+        amtEl.classList.add('num-err');
+        statEl.innerHTML = `<span class="dot err">✖</span><span class="text-err" title="${escapeHtml(msg)}"> 失败</span>`;
+      },
+      setStop(){ statEl.innerHTML = `<span class="dot err">✖</span><span class="text-err"> 已停止</span>`; }
+    };
+  }
+
+  function setSummary(total, success, eligible, sumIr){
+    summary.innerHTML = `输入地址数量 <b>${total}</b> 个 · 成功 <b>${success}</b> 个 · 可领取（>0） <b>${eligible}</b> 个 · 总可领取 <b>${sumIr}</b> ${TOKEN_SYMBOL}`;
+  }
+
+  function applyFilter(){
+    const onlyOk = onlyOkEl.checked;
+    results.forEach((r,i)=>{
+      const show = !onlyOk || (r?.status === 'OK' && Number(r.ir || 0) > 0);
+      rows[i].tr.style.display = show ? '' : 'none';
+      if (show) rows[i].idxCell.textContent = (document.querySelectorAll('#tbody tr:not([style*="display: none"])').length);
+    });
+    updateButtons();
+  }
+
+  function updateButtons(){
+    const anyFinished = results.some(r => r && r.status !== 'queued' && r.status !== 'running');
+    const anyEligible = results.some(r => r?.status === 'OK' && Number(r.ir || 0) > 0);
+    btnCsv.disabled = !anyFinished;
+    btnCopy.disabled = !anyEligible;
+  }
+
+  async function fetchOne(address, signal){
+    const url = API + encodeURIComponent(address);
+    const res = await fetch(url, { method:'GET', headers:{'accept':'application/json'}, cache:'no-store', signal });
+    const txt = await res.text();
+    if (!res.ok) throw new Error(`HTTP_${res.status}`);
+
+    let json;
+    try{ json = JSON.parse(txt); } catch { throw new Error('BAD_JSON'); }
+
+    const rawStr = (json?.amount == null) ? '0' : String(json.amount);
+    const ir = formatUnits(rawStr, DECIMALS);
+    return { rawStr, ir };
+  }
+
+  function resetUI(){
+    tbody.innerHTML = '';
+    tableCard.style.display = 'none';
+    rows = [];
+    results = [];
+    setSummary(0,0,0,'0');
+    btnCsv.disabled = true;
+    btnCopy.disabled = true;
+  }
+
+  function recomputeSummary(){
+    const total = results.length;
+    const success = results.filter(r => r?.status === 'OK').length;
+    const eligible = results.filter(r => r?.status === 'OK' && Number(r.ir || 0) > 0).length;
+
+    let sumRaw = 0n;
+    for (const r of results){
+      if (r?.status === 'OK') sumRaw += toBigIntSafe(r.raw || '0');
+    }
+    const sumIr = formatUnits(sumRaw.toString(), DECIMALS);
+    setSummary(total, success, eligible, sumIr);
+    updateButtons();
+  }
+
+  async function runAll(list){
+    for (let start = 0; start < list.length; start += BATCH_SIZE){
+      if (aborter.signal.aborted) break;
+
+      const batchIdx = [];
+      const batch = [];
+      for (let i = start; i < Math.min(list.length, start + BATCH_SIZE); i++){
+        batchIdx.push(i);
+        batch.push(list[i]);
+        rows[i].setPending();
+        results[i].status = 'running';
+      }
+
+      const ps = batch.map((addr, k) =>
+        fetchOne(addr, aborter.signal)
+          .then(r => ({ ok:true, i: batchIdx[k], r }))
+          .catch(e => ({ ok:false, i: batchIdx[k], err: e }))
+      );
+
+      const settled = await Promise.all(ps);
+
+      for (const s of settled){
+        const i = s.i;
+        const row = rows[i];
+        if (s.ok){
+          results[i] = { address: row.address, status:'OK', raw: s.r.rawStr, ir: s.r.ir };
+          row.setOK(s.r.ir);
+        } else {
+          results[i] = { address: row.address, status:'FAIL', raw:'0', ir:'0' };
+          row.setFail(s.err?.message || 'FAIL');
+        }
+      }
+
+      recomputeSummary();
+      applyFilter();
+    }
+  }
+
+  // ===== 事件 =====
+  startBtn.addEventListener('click', async ()=>{
+    resetUI();
+
+    const list = Array.from(new Set(parseAddresses(addrsEl.value).filter(valid)));
+    if (list.length === 0){
+      alert('请粘贴至少一个有效 EVM 地址（0x 开头，40 位 hex）');
+      return;
+    }
+
+    tableCard.style.display = 'block';
+    list.forEach((addr, i)=>{
+      rows.push(addRow(i, addr));
+      results.push({ address: addr, status:'queued', raw:'0', ir:'0' });
+    });
+
+    aborter = new AbortController();
+    setBusy(true);
+
+    try{
+      await runAll(list);
+    } finally {
+      setBusy(false);
+      recomputeSummary();
+      applyFilter();
+    }
+  });
+
+  stopBtn.addEventListener('click', ()=>{
+    if (aborter) aborter.abort();
+    rows.forEach(r => r.setStop());
+    setBusy(false);
+  });
+
+  onlyOkEl.addEventListener('change', applyFilter);
+
+  btnCopy.addEventListener('click', async ()=>{
+    const okAddrs = results.filter(r => r?.status === 'OK' && Number(r.ir||0) > 0).map(r => r.address);
+    if (!okAddrs.length) return alert('没有有空投的地址');
+    const sep = (sepSel.value === 'comma') ? ',' : '\n';
+    const text = okAddrs.join(sep);
+    try{
+      await navigator.clipboard.writeText(text);
+      alert(`已复制 ${okAddrs.length} 个有空投地址`);
+    }catch{
+      const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+      alert(`已复制 ${okAddrs.length} 个有空投地址`);
+    }
+  });
+
+  btnCsv.addEventListener('click', ()=>{
+    const onlyOk = exportOnlyOkEl.checked;
+    const rowsOut = results
+      .map((r,i)=> r ? ({ index:i+1, address:r.address, ir:r.ir || '0', status:r.status }) : null)
+      .filter(Boolean)
+      .filter(r => !onlyOk || (Number(r.ir) > 0 && r.status === 'OK'));
+
+    if (!rowsOut.length) return;
+
+    const headers = ['index','address','ir','status'];
+    const esc = v => v == null ? '' : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g,'""')}"` : v;
+    const csv = [headers.join(','), ...rowsOut.map(r => headers.map(h => esc(r[h])).join(','))].join('\n');
+
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'infrared_results.csv' });
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+  });
 </script>
 </body>
 </html>
