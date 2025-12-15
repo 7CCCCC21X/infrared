@@ -66,9 +66,11 @@
     <div class="row" style="margin-top:10px">
       <button id="start" class="btn">开始查询</button>
       <button id="stop" class="btn secondary" disabled>停止</button>
-      <a href="https://infrared.finance/" target="_blank" rel="noopener" class="btn link">官方入口</a>
+
+      <!-- ✅ 修改：官方入口 → 官方空投注册传送门 -->
+      <a href="https://infrared.finance/airdrop" target="_blank" rel="noopener" class="btn link">官方空投注册传送门</a>
+
       <a href="https://x.com/0xXIAOc" target="_blank" rel="noopener" class="btn link">作者推特 @0xXIAOc</a>
-      <span class="hint">同域接口：/api/infrared（已解决 CORS）</span>
     </div>
 
     <div class="row" style="margin-top:10px">
@@ -103,9 +105,6 @@
       </thead>
       <tbody id="tbody"></tbody>
     </table>
-    <div class="hint" style="margin-top:8px">
-      amount 按 18 位精度换算显示（示例 105890... ≈ 105.9 IR）。
-    </div>
   </div>
 </div>
 
@@ -196,17 +195,17 @@
     summary.innerHTML = `输入地址数量 <b>${total}</b> 个 · 成功 <b>${success}</b> 个 · 可领取（>0） <b>${eligible}</b> 个 · 总可领取 <b>${sumIr}</b> ${TOKEN_SYMBOL}`;
   }
 
-  // ✅ 修复：过滤后用 visibleNo++ 重新编号，避免全变成 100
+  // ✅ 按“输入时序号”展示：过滤时不重新编号
   function applyView(){
     const onlyOk = onlyOkEl.checked;
-    let visibleNo = 1;
 
     for (let i = 0; i < results.length; i++){
       const r = results[i];
       const show = !onlyOk || (r?.status === 'OK' && Number(r.ir || 0) > 0);
 
       rows[i].tr.style.display = show ? '' : 'none';
-      if (show) rows[i].idxCell.textContent = visibleNo++;
+      // 始终保持输入顺序编号（1..N）
+      rows[i].idxCell.textContent = rows[i].idx + 1;
     }
 
     updateButtons();
